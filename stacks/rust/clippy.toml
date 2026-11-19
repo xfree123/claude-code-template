@@ -1,0 +1,3 @@
+# unwrap() bị cảnh báo trong code chính (xem [lints] trong Cargo.toml), nhưng được phép trong test
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
