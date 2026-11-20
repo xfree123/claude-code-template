@@ -8,22 +8,20 @@ Hỗ trợ sẵn **Python**, **.NET**, **Rust**, **C++ (CMake)**; Node/Go đư�
 
 ---
 
-## 1. Cài đặt một lần (Windows)
+## 1. Cài đặt một lần
 
 Yêu cầu:
-- Python >= 3.10, gõ được `python` trong terminal (tick "Add python.exe to PATH" khi cài).
-- Git for Windows (Claude Code dùng Git Bash để chạy lệnh và hook).
-- .NET SDK nếu làm project .NET.
-- Rust: rustup + `rustup component add rustfmt clippy`.
-- C++: CMake >= 3.20, compiler C++17 (MSVC/GCC/Clang). Nên có Ninja, clang-format, clang-tidy (Windows: cài LLVM, hoặc dùng bản đi kèm Visual Studio).
+- Python >= 3.10, gõ được `python` trong terminal (Windows: tick "Add python.exe to PATH" khi cài; Linux: cài `python-is-python3` hoặc `python-unversioned-command`).
+- Git (Windows: Git for Windows — Claude Code dùng Git Bash để chạy lệnh và hook).
+- Theo stack: .NET SDK / rustup + `rustup component add rustfmt clippy` / CMake >= 3.20 + compiler C++17 (nên có Ninja, clang-format, clang-tidy; Windows: cài LLVM hoặc dùng bản đi kèm Visual Studio).
 
 ```powershell
-# Giải nén vào chỗ cố định
-Expand-Archive $HOME\Downloads\claude-code-template.zip -DestinationPath $HOME\templates
+# Clone (khuyên dùng, để cập nhật bằng git pull) hoặc giải nén file zip
+git clone https://github.com/<user>/<repo>.git $HOME\templates\claude-code-template
 
 # Kiểm tra hook chạy đúng trên máy bạn
 cd $HOME\templates\claude-code-template
-python selftest.py          # phải ra: 82/82 đúng
+python selftest.py          # phải ra: 84/84 đúng
 ```
 
 Tạo lệnh tắt `newproj` cho PowerShell:
@@ -34,7 +32,11 @@ notepad $PROFILE
 function newproj { python "$HOME\templates\claude-code-template\new_project.py" @args }
 ```
 
+Linux/macOS: `alias newproj="python ~/templates/claude-code-template/new_project.py"` trong `~/.bashrc`.
+
 ## 2. Project mới
+
+Python:
 
 ```powershell
 newproj D:\code\tms-report --stack python --desc "Báo cáo TMS hằng ngày"
@@ -46,7 +48,7 @@ python scripts/check.py      # phải PASS
 claude
 ```
 
-Project .NET:
+.NET:
 
 ```powershell
 newproj D:\code\shop-api --stack dotnet
@@ -59,7 +61,7 @@ dotnet add tests/ShopApi.Tests reference src/ShopApi.Api
 python scripts/check.py
 ```
 
-Project Rust:
+Rust:
 
 ```powershell
 newproj D:\code\cam-agent --stack rust
@@ -68,7 +70,7 @@ python scripts/check.py      # cargo fmt --check, clippy -D warnings, cargo test
 ```
 Khung tạo sẵn: `Cargo.toml` (cấm `unsafe`, cảnh báo `unwrap()` ngoài test), `clippy.toml`, `src/lib.rs` + `src/main.rs` có sẵn 1 unit test.
 
-Project C++:
+C++:
 
 ```powershell
 newproj D:\code\cam-sdk --stack cpp
@@ -147,25 +149,25 @@ Luồng một task:
 2. `/task thêm API GET /orders/{id}/status, trả 404 khi không có đơn. Check: test mới pass`
 3. Claude đọc code, viết `docs/runs/<ngày>-<tên>/plan.md`, dừng chờ duyệt.
 4. Đọc plan, sửa nếu cần, duyệt.
-5. Claude code từng bước, ghi bằng chứng vào `checks.md`.
-6. Báo cáo: pass/unresolved, `git diff --stat`, đề xuất rule mới.
+5. Claude code từng bước, ghi bằng chứng vào `checks.md`. Khi sửa lỗi dùng `check.py --failed`.
+6. Báo cáo: pass/unresolved, `git diff --stat`, đề xuất rule mới. Lần chạy `check.py` cuối phải là bản đầy đủ.
 7. Bạn review diff, tự commit.
 
 ## 5. Hook chặn những gì
 
 **guard.py** (trước lệnh Bash và PowerShell):
-- `rm -r` với đường dẫn tuyệt đối/`~`/`..`/ổ đĩa; `Remove-Item -Recurse` ra ngoài project; `rd /s`, `del /s`; format ổ đĩa
+- `rm -r` với đường dẫn tuyệt đối/`~`/`..`/ổ đĩa (kể cả `cmake -E rm -r`, `cmake -E remove_directory`); `Remove-Item -Recurse` ra ngoài project; `rd /s`, `del /s`; format ổ đĩa
 - `git push --force` (cho phép `--force-with-lease`), push thẳng main/master, `reset --hard`, `clean -f`, `checkout -- .`
 - `dotnet ef database update/drop`, `DROP DATABASE/TABLE`, `TRUNCATE`
 - publish package (npm, twine, nuget, `cargo publish`, conan upload)
-- `cargo install`, `rustup default`, `cmake --install`, `make install`/`ninja install`, `vcpkg integrate install`, `cmake -E rm -r` ra ngoài project
+- `cargo install`, `rustup default`, `cmake --install`, `make install`/`ninja install`, `vcpkg integrate install`
 - `sudo`, cài toàn cục, `Set-ExecutionPolicy`, sửa registry HKLM, tắt/khởi động lại máy
 - đọc/copy `.env`, private key
 
 **protect_paths.py** (trước khi sửa file):
 - ngoài project, `.env*` (trừ `.env.example`), key/cert, `secrets.json`, `appsettings.Production.json`, lockfile (kể cả `Cargo.lock`, `vcpkg-lock.json`), `compile_commands.json`
 - thư mục ở mọi cấp: `.git/`, `.claude/hooks/`, `bin/`, `obj/`, `node_modules/`, `.venv/`, `Migrations/`
-- thư mục chỉ ở gốc project: `target/`, `build/`, `out/`, `cmake-build-*/`, `third_party/`, `vendor/`, `vcpkg_installed/` (để không chặn nhầm `src/build/`...)
+- thư mục chỉ ở gốc project: `target/`, `build/`, `out/`, `cmake-build-*/`, `third_party/`, `vendor/`, `vcpkg_installed/`, `.check/` (để không chặn nhầm `src/build/`...)
 
 Sửa danh sách trong từng file hook theo project. Sau khi sửa, chạy lại `python selftest.py` ở thư mục template.
 
@@ -174,15 +176,22 @@ Giới hạn cần biết: hook kiểm tra chuỗi lệnh. Nó chặn được s
 ## 6. check.py
 
 ```powershell
-python scripts/check.py           # chạy theo cấu hình
-python scripts/check.py --list    # xem các bước sẽ chạy
-python scripts/check.py --all     # bỏ qua lint_scope, kiểm tra toàn bộ
+python scripts/check.py              # chạy đầy đủ, output gọn
+python scripts/check.py --failed     # chỉ chạy lại bước fail lần trước (khi đang sửa)
+python scripts/check.py --only py-test,rust-clippy   # chỉ chạy bước chỉ định
+python scripts/check.py --list       # xem các bước sẽ chạy
+python scripts/check.py --all        # bỏ qua lint_scope, kiểm tra toàn bộ
+python scripts/check.py -v           # in toàn bộ output công cụ (cho người đọc)
 ```
 
+**Output tiết kiệm token** (mặc định): bước pass in 1 dòng; bước fail chỉ in dòng lỗi (tối đa `output_lines`, mặc định 40), gộp lỗi trùng ở nhiều file, lọc nhiễu compiler (`note: candidate…`, chuỗi `required from` trong header hệ thống), rút gọn đường dẫn. Lỗi format chỉ liệt kê file kèm lệnh sửa tự động. Log đầy đủ ở `.check/<bước>.log` (thư mục tự loại khỏi git). `--failed`/`--only` tự kèm bước configure/build cần thiết; kết quả cuối phải là một lần chạy đầy đủ không cờ.
+
+Đo trên project có lỗi điển hình: Python giảm 86%, Rust 86%, C++ (lỗi template STL) 95% lượng output đưa vào context.
+
 Tự nhận diện:
-- **Python**: ruff check, ruff format --check, mypy src (nếu cài), pytest (nếu có test). Tự dùng `.venv` của project.
+- **Python**: ruff check, ruff format --check, mypy src (nếu cài), pytest (nếu có test). Tự dùng `.venv` của project, hoặc `ruff` trên PATH.
 - **.NET**: `dotnet format --verify-no-changes`, `dotnet build`, `dotnet test`. Nhiều `.sln` thì đặt `dotnet_target`.
-- **Rust** (có `Cargo.toml`): `cargo fmt --check` (chế độ changed: `rustfmt --check` từng file), `cargo clippy --all-targets -D warnings`, `cargo test --workspace`.
+- **Rust** (có `Cargo.toml`): `cargo fmt --check` (chế độ changed: `rustfmt --check` từng file), `cargo clippy --all-targets -D warnings`, `cargo test --workspace`. Clippy fail vì lint vẫn cho test chạy; chỉ khi có lỗi compile thì test mới bị SKIP.
 - **C++** (có `CMakeLists.txt`): `cmake` configure → `clang-format --dry-run` (nếu có `.clang-format`) → `cmake --build` → `clang-tidy` (nếu có `.clang-tidy` và `compile_commands.json`) → `ctest`. Configure hoặc build fail thì tidy/test được SKIP, không báo lỗi dây chuyền.
 
 Cấu hình đầy đủ (`scripts/check.config.json`, mọi khóa đều tùy chọn):
@@ -191,6 +200,7 @@ Cấu hình đầy đủ (`scripts/check.config.json`, mọi khóa đều tùy c
 {
   "lint_scope": "changed",
   "base_ref": "origin/develop",
+  "output_lines": 40,
   "dotnet_target": "src/ShopApi.sln",
   "dotnet_warnaserror": false,
   "rust_deny_warnings": true,
@@ -213,17 +223,21 @@ Cấu hình đầy đủ (`scripts/check.config.json`, mọi khóa đều tùy c
 |---|---|
 | Hook không chạy | Trong Claude Code gõ `/hooks` xem có 3 hook không. Kiểm tra `python --version` chạy được trong Git Bash |
 | `python` mở Microsoft Store | Tắt App execution alias cho python.exe trong Settings → Apps → Advanced app settings |
-| Chỉ có lệnh `py` | Sửa `"command": "python"` thành `"command": "py"` trong `.claude/settings.json` |
+| Chỉ có lệnh `py` / `python3` | Sửa `"command": "python"` trong `.claude/settings.json`, hoặc cài gói `python-is-python3`. Nếu không, hook lỗi và Claude Code **vẫn cho lệnh chạy** |
 | `/permissions` báo lỗi cú pháp | Claude Code đổi cú pháp quyền; sửa theo thông báo |
 | check.py: "bỏ qua py-lint: chưa cài ruff" | `python -m pip install ruff` trong .venv |
 | .NET build lỗi NU1301 | Không tải được NuGet — kiểm tra mạng/proxy, chạy `dotnet restore` |
 | `cpp-tidy` luôn SKIP trên Windows | Generator Visual Studio không sinh `compile_commands.json`. Cài Ninja và chạy check trong "Developer PowerShell for VS", hoặc đặt `"skip": ["cpp-tidy"]` |
 | `Does not match the generator used previously` | Thư mục `build/` được configure bằng generator khác. Xóa `build/` rồi chạy lại |
 | `rust-clippy` bị bỏ qua | `rustup component add clippy rustfmt` |
+| Tóm tắt lỗi thiếu thông tin | Xem `.check/<bước>.log`, hoặc chạy `python scripts/check.py -v` |
+| Upload lên GitHub bằng web thiếu `.claude/`, `.gitignore`... | Trình duyệt bỏ qua thư mục/file bắt đầu bằng dấu chấm. Dùng `git push` thay vì upload qua web |
 
 ## 8. Cập nhật template
 
-Template nằm ở `$HOME\templates\claude-code-template\`. Rule nào lặp lại ở nhiều project (mục "Rules đã học") thì chép ngược về `template/CLAUDE.md` hoặc `stacks/*.md`. Nên đưa thư mục này lên Bitbucket để cả team dùng chung và quản lý phiên bản.
+Rule nào lặp lại ở nhiều project (mục "Rules đã học") thì chép ngược về `template/CLAUDE.md` hoặc `stacks/*.md`. Quản lý thư mục template bằng git (`git add -A && git commit && git push`); không upload qua web vì sẽ mất các thư mục bắt đầu bằng dấu chấm.
+
+Sau khi sửa template, áp sang các project đang dùng bằng `newproj --update <project>`.
 
 ```
 claude-code-template/

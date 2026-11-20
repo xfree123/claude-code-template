@@ -12,4 +12,4 @@
 - Không thêm `#[allow(...)]` để tắt lint khi chưa hỏi.
 - Logging: `tracing` (structured), không `println!` trong code thư viện.
 - Async (nếu dùng): một runtime duy nhất (tokio); không gọi blocking I/O trong async, dùng `spawn_blocking`.
-- Unit test đặt trong `#[cfg(test)] mod tests` cùng file; integration test trong `tests/`.
+- Unit test đặt trong `#[cfg(test)] mod tests` ở CUỐI file; integration test trong `tests/`.

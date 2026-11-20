@@ -1,4 +1,4 @@
-"""Tạo project mới, hoặc thêm harness Claude Code vào project đã có code.
+"""Tạo project mới, thêm harness Claude Code vào project đã có code, hoặc nâng cấp harness.
 
 Chạy trên Windows / Linux / macOS, chỉ cần Python >= 3.10 và git.
 
@@ -11,8 +11,10 @@ Chạy trên Windows / Linux / macOS, chỉ cần Python >= 3.10 và git.
     python new_project.py --update <project-đã-có-harness>          # nâng cấp hook/check.py
 
 --apply không ghi đè file nào đã có:
-  - CLAUDE.md có sẵn  -> bản mẫu lưu thành CLAUDE.harness.md để gộp tay
-  - .gitignore có sẵn -> chỉ nối thêm các dòng còn thiếu
+  - CLAUDE.md có sẵn            -> bản mẫu lưu thành CLAUDE.harness.md để gộp (dùng /onboard)
+  - .gitignore có sẵn           -> chỉ nối thêm các dòng còn thiếu
+  - .claude/settings.json có sẵn -> gộp quyền/hook, giữ mọi thứ cũ (bản gốc: settings.json.bak)
+  - .gitattributes              -> lưu thành .gitattributes.harness, không áp dụng
 
 --update ghi đè các file do harness quản lý (hook, check.py, command mẫu) bằng bản mới,
 gộp thêm quyền/hook mới vào settings.json; KHÔNG đụng CLAUDE.md, check.config.json, code.
@@ -34,6 +36,22 @@ TPL = HERE / "template"
 STACKS = HERE / "stacks"
 # Không bao giờ copy cache/sản phẩm build từ template sang project
 SKIP_DIRS = {"__pycache__", ".ruff_cache", ".mypy_cache", ".pytest_cache", "target", "build"}
+KNOWN_STACKS = ("python", "dotnet", "rust", "cpp")
+
+# File harness sở hữu: --update được phép ghi đè
+HARNESS_OWNED = (
+    ".claude/hooks/guard.py",
+    ".claude/hooks/protect_paths.py",
+    ".claude/hooks/format.py",
+    ".claude/commands/task.md",
+    ".claude/commands/resume.md",
+    ".claude/commands/learn.md",
+    ".claude/commands/onboard.md",
+    "scripts/check.py",
+    "docs/runs/_template/plan.md",
+    "docs/runs/_template/checks.md",
+    "docs/runs/_template/progress.md",
+)
 
 for stream in (sys.stdout, sys.stderr):
     try:
@@ -42,6 +60,7 @@ for stream in (sys.stdout, sys.stderr):
         pass
 
 
+# ---------------------------------------------------------------- nhận diện
 def detect_stack(target: Path) -> list[str]:
     found = []
     if any((target / f).exists() for f in ("pyproject.toml", "requirements.txt", "setup.py")):
@@ -54,9 +73,6 @@ def detect_stack(target: Path) -> list[str]:
     if (target / "CMakeLists.txt").exists():
         found.append("cpp")
     return found
-
-
-KNOWN_STACKS = ("python", "dotnet", "rust", "cpp")
 
 
 def names_for(name: str) -> dict[str, str]:
@@ -82,6 +98,7 @@ def stack_section(stacks: list[str]) -> str:
     return "\n\n".join(parts)
 
 
+# ---------------------------------------------------------------- gộp file có sẵn
 def merge_gitignore(src: Path, dst: Path) -> None:
     existing = {
         line.strip() for line in dst.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -141,6 +158,7 @@ def merge_settings(src: Path, dst: Path) -> None:
     print(f"  ~ .claude/settings.json: gộp thêm {added} mục (bản gốc: settings.json.bak)")
 
 
+# ---------------------------------------------------------------- copy
 def copy_template(target: Path, apply: bool) -> Path:
     """Copy template, không ghi đè. Trả về đường dẫn file CLAUDE cần điền placeholder."""
     claude_file = target / "CLAUDE.md"
@@ -206,26 +224,6 @@ def scaffold(target: Path, stack: str, names: dict[str, str]) -> None:
         print(f"  + {rel}")
 
 
-def git(target: Path, *args: str) -> bool:
-    return subprocess.run(["git", "-C", str(target), *args], capture_output=True).returncode == 0
-
-
-# File harness sở hữu: --update được phép ghi đè
-HARNESS_OWNED = (
-    ".claude/hooks/guard.py",
-    ".claude/hooks/protect_paths.py",
-    ".claude/hooks/format.py",
-    ".claude/commands/task.md",
-    ".claude/commands/resume.md",
-    ".claude/commands/learn.md",
-    ".claude/commands/onboard.md",
-    "scripts/check.py",
-    "docs/runs/_template/plan.md",
-    "docs/runs/_template/checks.md",
-    "docs/runs/_template/progress.md",
-)
-
-
 def update_harness(target: Path) -> int:
     if not (target / ".claude").is_dir():
         print(f"{target} chưa có harness. Dùng --apply trước.", file=sys.stderr)
@@ -254,6 +252,11 @@ def update_harness(target: Path) -> int:
     return 0
 
 
+def git(target: Path, *args: str) -> bool:
+    return subprocess.run(["git", "-C", str(target), *args], capture_output=True).returncode == 0
+
+
+# ---------------------------------------------------------------- main
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -289,17 +292,17 @@ def main() -> int:
     if a.apply and not target.is_dir():
         print(f"{target} không tồn tại.", file=sys.stderr)
         return 1
-    target.mkdir(parents=True, exist_ok=True)
 
-    stacks = [s.strip().lower() for s in a.stack.split(",") if s.strip()] or detect_stack(target)
+    stacks = [s.strip().lower() for s in a.stack.split(",") if s.strip()]
     stacks = ["cpp" if s in ("c++", "cxx", "cmake") else s for s in stacks]
     unknown = [s for s in stacks if s not in KNOWN_STACKS]
     if unknown:
         print(f"Stack không hỗ trợ: {', '.join(unknown)}. Chọn: {', '.join(KNOWN_STACKS)}")
         return 1
-    print(
-        f"{'Áp harness' if a.apply else 'Tạo project'} {target} (stack: {', '.join(stacks) or '?'})"
-    )
+    target.mkdir(parents=True, exist_ok=True)
+    stacks = stacks or detect_stack(target)
+    action = "Áp harness" if a.apply else "Tạo project"
+    print(f"{action} {target} (stack: {', '.join(stacks) or '?'})")
 
     claude_file = copy_template(target, a.apply)
     fill_placeholders(claude_file, name, a.desc, stacks)
@@ -309,28 +312,18 @@ def main() -> int:
         for stack in stacks:
             scaffold(target, stack, names)
 
-    was_repo = (target / ".git").exists()
-    if not was_repo:
+    if not (target / ".git").exists():
         git(target, "init", "-q")
         if not a.apply:
             git(target, "add", "-A")
-            ok = (
-                git(
-                    target,
-                    "-c",
-                    "user.name=dev",
-                    "-c",
-                    "user.email=dev@localhost",
-                    "commit",
-                    "-q",
-                    "-m",
-                    "chore: khởi tạo project từ Claude Code template",
-                )
-                if not git(target, "config", "user.email")
-                else git(
-                    target, "commit", "-q", "-m", "chore: khởi tạo project từ Claude Code template"
-                )
-            )
+            msg = "chore: khởi tạo project từ Claude Code template"
+            if git(target, "config", "user.email"):
+                ok = git(target, "commit", "-q", "-m", msg)
+            else:
+                ok = git(
+                    target, "-c", "user.name=dev", "-c", "user.email=dev@localhost",
+                    "commit", "-q", "-m", msg,
+                )  # fmt: skip
             print(
                 "  git: đã init và commit lần đầu"
                 if ok
@@ -352,11 +345,7 @@ def main() -> int:
             )
             print('  python -m pip install -e ".[dev]"')
         if "dotnet" in stacks:
-            print(
-                "  dotnet new sln -n "
-                + name
-                + "   # và các project: dotnet new webapi / classlib / xunit ..."
-            )
+            print(f"  dotnet new sln -n {name}   # rồi: dotnet new webapi / classlib / xunit")
         if "rust" in stacks:
             print("  rustup component add rustfmt clippy   # nếu chưa có")
         if "cpp" in stacks:

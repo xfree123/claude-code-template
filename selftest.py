@@ -61,6 +61,7 @@ GUARD = [
     ("BLOCK", "Restart-Computer"),
     ("ALLOW", "python -m pytest -q"),
     ("ALLOW", "python scripts/check.py"),
+    ("ALLOW", "python scripts/check.py --failed"),
     # Rust
     ("ALLOW", "cargo build --workspace"),
     ("ALLOW", "cargo test"),
@@ -97,6 +98,7 @@ PATHS = [
     ("ALLOW", "src/app.py"),
     ("ALLOW", "src/Api/Controllers/OrderController.cs"),
     ("BLOCK", "package-lock.json"),
+    ("BLOCK", "/etc/hosts" if os.name != "nt" else r"C:\Windows\System32\drivers\etc\hosts"),
     # Rust / C++
     ("BLOCK", "Cargo.lock"),
     ("ALLOW", "Cargo.toml"),
@@ -110,7 +112,8 @@ PATHS = [
     ("ALLOW", "include/app/core.hpp"),
     ("BLOCK", "third_party/json/json.hpp"),
     ("BLOCK", "compile_commands.json"),
-    ("BLOCK", "/etc/hosts" if os.name != "nt" else r"C:\Windows\System32\drivers\etc\hosts"),
+    # log của check.py
+    ("BLOCK", ".check/py-test.log"),
 ]
 
 
